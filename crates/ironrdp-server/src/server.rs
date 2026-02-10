@@ -1,3 +1,4 @@
+use core::fmt;
 use core::net::SocketAddr;
 use std::rc::Rc;
 use std::sync::Arc;
@@ -223,7 +224,6 @@ pub struct RdpServer {
     local_addr: Option<SocketAddr>,
 }
 
-#[derive(Debug)]
 pub enum ServerEvent {
     Quit(String),
     Clipboard(ClipboardMessage),
@@ -240,6 +240,26 @@ pub enum ServerEvent {
         /// Pre-encoded DVC messages to send.
         messages: Vec<dvc::DvcMessage>,
     },
+}
+
+impl fmt::Debug for ServerEvent {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Quit(reason) => f.debug_tuple("Quit").field(reason).finish(),
+            Self::Clipboard(msg) => f.debug_tuple("Clipboard").field(msg).finish(),
+            Self::Rdpsnd(msg) => f.debug_tuple("Rdpsnd").field(msg).finish(),
+            Self::SetCredentials(creds) => f.debug_tuple("SetCredentials").field(creds).finish(),
+            Self::GetLocalAddr(_) => f.debug_tuple("GetLocalAddr").finish(),
+            Self::DvcOutput {
+                dvc_channel_id,
+                messages,
+            } => f
+                .debug_struct("DvcOutput")
+                .field("dvc_channel_id", dvc_channel_id)
+                .field("message_count", &messages.len())
+                .finish(),
+        }
+    }
 }
 
 pub trait ServerEventSender {
