@@ -85,6 +85,21 @@ impl DrdynvcServer {
         self
     }
 
+    /// Register a dynamic virtual channel using a boxed processor.
+    ///
+    /// This is the type-erased counterpart of [`with_dynamic_channel`](Self::with_dynamic_channel),
+    /// useful when the concrete processor type is not known at compile time
+    /// (e.g. when wrapping a shared `Arc<Mutex<GraphicsPipelineServer>>`).
+    #[must_use]
+    pub fn with_boxed_dynamic_channel(mut self, processor: Box<dyn DvcProcessor>) -> Self {
+        self.dynamic_channels.insert(DynamicChannel {
+            state: ChannelState::Closed,
+            processor,
+            complete_data: CompleteData::new(),
+        });
+        self
+    }
+
     fn channel_by_id(&mut self, id: u32) -> DecodeResult<&mut DynamicChannel> {
         let id = cast_length!("DRDYNVC", "", id)?;
         self.dynamic_channels

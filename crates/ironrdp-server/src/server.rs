@@ -230,6 +230,16 @@ pub enum ServerEvent {
     Rdpsnd(RdpsndServerMessage),
     SetCredentials(Credentials),
     GetLocalAddr(oneshot::Sender<Option<SocketAddr>>),
+    /// Server-initiated DVC data (e.g. EGFX H.264 frames).
+    ///
+    /// The messages are encoded via [`ironrdp_dvc::encode_dvc_messages`] and
+    /// forwarded through the DRDYNVC static virtual channel.
+    DvcOutput {
+        /// The DVC channel ID assigned during channel creation.
+        dvc_channel_id: u32,
+        /// Pre-encoded DVC messages to send.
+        messages: Vec<dvc::DvcMessage>,
+    },
 }
 
 pub trait ServerEventSender {
@@ -541,6 +551,19 @@ impl RdpServer {
                         .get_channel_id_by_type::<RdpsndServer>()
                         .ok_or_else(|| anyhow!("SVC channel not found"))?;
                     let data = server_encode_svc_messages(msgs.into(), channel_id, user_channel_id)?;
+                    writer.write_all(&data).await?;
+                }
+                ServerEvent::DvcOutput {
+                    dvc_channel_id,
+                    messages,
+                } => {
+                    let svc_messages =
+                        dvc::encode_dvc_messages(dvc_channel_id, messages, ironrdp_svc::ChannelFlags::SHOW_PROTOCOL)
+                            .context("failed to encode DVC output messages")?;
+                    let channel_id = self
+                        .get_channel_id_by_type::<dvc::DrdynvcServer>()
+                        .ok_or_else(|| anyhow!("DRDYNVC SVC channel not found"))?;
+                    let data = server_encode_svc_messages(svc_messages, channel_id, user_channel_id)?;
                     writer.write_all(&data).await?;
                 }
                 ServerEvent::Clipboard(c) => {
