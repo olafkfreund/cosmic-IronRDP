@@ -222,6 +222,7 @@ pub struct RdpServer {
     ev_receiver: Arc<Mutex<mpsc::UnboundedReceiver<ServerEvent>>>,
     creds: Option<Credentials>,
     local_addr: Option<SocketAddr>,
+    extra_dvc_processors: Vec<Box<dyn dvc::DvcProcessor>>,
 }
 
 pub enum ServerEvent {
@@ -305,6 +306,7 @@ impl RdpServer {
             ev_receiver: Arc::new(Mutex::new(ev_receiver)),
             creds: None,
             local_addr: None,
+            extra_dvc_processors: Vec::new(),
         }
     }
 
@@ -314,6 +316,12 @@ impl RdpServer {
 
     pub fn event_sender(&self) -> &mpsc::UnboundedSender<ServerEvent> {
         &self.ev_sender
+    }
+
+    /// Register an additional DVC processor to be attached to the DRDYNVC
+    /// static virtual channel on each connection.
+    pub fn add_dvc_processor(&mut self, processor: Box<dyn dvc::DvcProcessor>) {
+        self.extra_dvc_processors.push(processor);
     }
 
     fn attach_channels(&mut self, acceptor: &mut Acceptor) {
@@ -332,11 +340,16 @@ impl RdpServer {
         }
 
         let dcs_backend = DisplayControlBackend::new(Arc::clone(&self.display));
-        let dvc = dvc::DrdynvcServer::new()
+        let mut dvc = dvc::DrdynvcServer::new()
             .with_dynamic_channel(AInputHandler {
                 handler: Arc::clone(&self.handler),
             })
             .with_dynamic_channel(DisplayControlServer::new(Box::new(dcs_backend)));
+
+        for processor in self.extra_dvc_processors.drain(..) {
+            dvc = dvc.with_boxed_dynamic_channel(processor);
+        }
+
         acceptor.attach_static_channel(dvc);
     }
 
