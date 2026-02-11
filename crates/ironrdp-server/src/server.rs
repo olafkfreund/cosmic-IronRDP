@@ -223,6 +223,7 @@ pub struct RdpServer {
     creds: Option<Credentials>,
     local_addr: Option<SocketAddr>,
     extra_dvc_processors: Vec<Box<dyn dvc::DvcProcessor>>,
+    extra_dvc_factories: Vec<Box<dyn dvc::DvcProcessorFactory>>,
 }
 
 pub enum ServerEvent {
@@ -307,6 +308,7 @@ impl RdpServer {
             creds: None,
             local_addr: None,
             extra_dvc_processors: Vec::new(),
+            extra_dvc_factories: Vec::new(),
         }
     }
 
@@ -322,6 +324,15 @@ impl RdpServer {
     /// static virtual channel on each connection.
     pub fn add_dvc_processor(&mut self, processor: Box<dyn dvc::DvcProcessor>) {
         self.extra_dvc_processors.push(processor);
+    }
+
+    /// Register a DVC processor factory that creates a fresh processor for
+    /// each RDP connection.
+    ///
+    /// Unlike [`add_dvc_processor`](Self::add_dvc_processor) which is consumed
+    /// after the first connection, factories persist across connections.
+    pub fn add_dvc_factory(&mut self, factory: Box<dyn dvc::DvcProcessorFactory>) {
+        self.extra_dvc_factories.push(factory);
     }
 
     fn attach_channels(&mut self, acceptor: &mut Acceptor) {
@@ -348,6 +359,11 @@ impl RdpServer {
 
         for processor in self.extra_dvc_processors.drain(..) {
             dvc = dvc.with_boxed_dynamic_channel(processor);
+        }
+
+        // Factory-backed processors are recreated for each connection.
+        for factory in &self.extra_dvc_factories {
+            dvc = dvc.with_boxed_dynamic_channel(factory.build());
         }
 
         acceptor.attach_static_channel(dvc);

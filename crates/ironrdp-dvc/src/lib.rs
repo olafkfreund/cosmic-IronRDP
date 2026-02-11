@@ -58,6 +58,21 @@ pub trait DvcProcessor: AsAny + Send {
 
 assert_obj_safe!(DvcProcessor);
 
+/// Factory for creating fresh [`DvcProcessor`] instances per connection.
+///
+/// When registered with [`DrdynvcServer`], a new processor is created for
+/// each RDP connection, solving the issue where `drain(..)` on one-shot
+/// processors leaves subsequent connections without the DVC channel.
+pub trait DvcProcessorFactory: Send + Sync {
+    /// Create a new DVC processor instance.
+    fn build(&self) -> Box<dyn DvcProcessor>;
+
+    /// The channel name (must match what the produced processor returns).
+    fn channel_name(&self) -> &str;
+}
+
+assert_obj_safe!(DvcProcessorFactory);
+
 pub fn encode_dvc_messages(
     channel_id: u32,
     messages: Vec<DvcMessage>,
