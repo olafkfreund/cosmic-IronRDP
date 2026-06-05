@@ -7,6 +7,7 @@ metadata:
   name: cosmic-ext-IronRDP
   description: "Rust implementation of the Microsoft Remote Desktop Protocol (RDP)"
   annotations:
+    backstage.io/techdocs-ref: dir:.
     github.com/project-slug: olafkfreund/cosmic-ext-IronRDP
   tags: []
 spec:
